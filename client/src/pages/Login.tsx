@@ -4,53 +4,34 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { AlertCircle, Loader2 } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 export default function Login() {
   const [, navigate] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+
+  const loginMutation = trpc.auth.login.useMutation({
+    onSuccess: () => {
+      setError("");
+      navigate("/");
+    },
+    onError: (err) => {
+      setError(err.message || "Invalid email or password");
+    },
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setIsLoading(true);
-
-    try {
-      // Call tRPC endpoint using proper format
-      const response = await fetch("/api/trpc/auth.login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          json: { email, password },
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        const errorMsg = data?.error?.message || data?.message || "Invalid email or password";
-        setError(errorMsg);
-        setIsLoading(false);
-        return;
-      }
-
-      // Success - redirect to dashboard
-      if (data.result?.data?.success) {
-        setError("");
-        navigate("/");
-      } else {
-        setError("Login failed");
-      }
-    } catch (err) {
-      console.error("Login error:", err);
-      setError("An error occurred. Please try again.");
-    } finally {
-      setIsLoading(false);
+    
+    if (!email || !password) {
+      setError("Please enter both email and password");
+      return;
     }
+
+    loginMutation.mutate({ email, password });
   };
 
   return (
@@ -93,7 +74,7 @@ export default function Login() {
                 placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
+                disabled={loginMutation.isPending}
                 required
                 className="w-full"
               />
@@ -110,7 +91,7 @@ export default function Login() {
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
+                disabled={loginMutation.isPending}
                 required
                 className="w-full"
               />
@@ -119,10 +100,10 @@ export default function Login() {
             {/* Submit Button */}
             <Button
               type="submit"
-              disabled={isLoading || !email || !password}
+              disabled={loginMutation.isPending || !email || !password}
               className="w-full h-10 sm:h-11 text-base font-semibold"
             >
-              {isLoading ? (
+              {loginMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Signing in...

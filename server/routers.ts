@@ -2,9 +2,10 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
+import { sdk } from "./_core/sdk";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import { getCredentialByEmail } from "./db";
+import { getCredentialByEmail, upsertUser } from "./db";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -36,9 +37,26 @@ export const appRouter = router({
           throw new Error("Invalid email or password");
         }
 
-        // Set session cookie
+        // Create a unique openId for credential-based users
+        const credentialOpenId = `credential-${input.email}`;
+
+        // Upsert user in database so ctx.user is populated on next request
+        await upsertUser({
+          openId: credentialOpenId,
+          email: input.email,
+          name: input.email.split("@")[0],
+          loginMethod: "credential",
+          lastSignedIn: new Date(),
+        });
+
+        // Create a JWT session token
+        const sessionToken = await sdk.createSessionToken(credentialOpenId, {
+          name: input.email,
+        });
+
+        // Set session cookie with JWT token
         const cookieOptions = getSessionCookieOptions(ctx.req);
-        ctx.res.cookie(COOKIE_NAME, "authenticated", { 
+        ctx.res.cookie(COOKIE_NAME, sessionToken, { 
           ...cookieOptions, 
           maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         });
