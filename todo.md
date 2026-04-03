@@ -11,7 +11,7 @@
 ## Database & Schema
 - [x] Create credentials table for storing hashed passwords
 - [x] Add auth-related database migrations
-- [ ] Seed initial admin credentials (requires database connection)
+- [x] Seed initial admin credentials (successfully seeded via direct-seed.mjs)
 
 ## Dashboard & Cards
 - [x] Add fourth card "Social Media Password Tab" to dashboard
@@ -22,7 +22,7 @@
 ## Backend API
 - [x] Create login endpoint with credential validation
 - [x] Create logout endpoint with session clearing
-- [ ] Create auth check endpoint (needs verification)
+- [x] Create auth check endpoint (auth.me implemented)
 - [x] Implement password hashing and validation
 
 ## Frontend Components
