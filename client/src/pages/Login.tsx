@@ -90,7 +90,7 @@ export default function Login() {
               <Input
                 id="email"
                 type="email"
-                placeholder="kashyapnandan2021@gmail.com"
+                placeholder="Enter your email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
