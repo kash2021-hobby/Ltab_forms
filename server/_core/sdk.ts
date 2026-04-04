@@ -257,47 +257,31 @@ class SDKServer {
   }
 
   async authenticateRequest(req: Request): Promise<User> {
-    // Regular authentication flow
+    // Simplified credential-based authentication
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
-    const session = await this.verifySession(sessionCookie);
 
-    if (!session) {
+    if (!sessionCookie) {
       throw ForbiddenError("Invalid session cookie");
     }
 
-    const sessionUserId = session.openId;
-    const signedInAt = new Date();
-    let user = await db.getUserByOpenId(sessionUserId);
+    // Parse session token format: "id-email-timestamp"
+    const parts = sessionCookie.split("-");
+    const userId = parts[0];
+    const email = parts.slice(1, -1).join("-"); // Handle emails with hyphens
 
-    // If user not in DB, sync from OAuth server automatically
-    if (!user) {
-      try {
-        const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
-        await db.upsertUser({
-          openId: userInfo.openId,
-          name: userInfo.name || null,
-          email: userInfo.email ?? null,
-          loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
-          lastSignedIn: signedInAt,
-        });
-        user = await db.getUserByOpenId(userInfo.openId);
-      } catch (error) {
-        console.error("[Auth] Failed to sync user from OAuth:", error);
-        throw ForbiddenError("Failed to sync user info");
-      }
+    if (!userId || !email) {
+      throw ForbiddenError("Invalid session format");
     }
 
-    if (!user) {
-      throw ForbiddenError("User not found");
+    // Get user from database
+    const user = await db.getUserByEmail(email);
+
+    if (!user || user.id.toString() !== userId) {
+      throw ForbiddenError("User not found or session invalid");
     }
 
-    await db.upsertUser({
-      openId: user.openId,
-      lastSignedIn: signedInAt,
-    });
-
-    return user;
+    return user as any;
   }
 }
 

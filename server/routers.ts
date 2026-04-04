@@ -2,10 +2,8 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
-import { sdk } from "./_core/sdk";
 import { z } from "zod";
-import bcrypt from "bcryptjs";
-import { getCredentialByEmail, upsertUser } from "./db";
+import { getUserByEmail } from "./db";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -25,36 +23,22 @@ export const appRouter = router({
         password: z.string().min(1, "Password is required"),
       }))
       .mutation(async ({ input, ctx }) => {
-        const credential = await getCredentialByEmail(input.email);
+        // Get user from database
+        const user = await getUserByEmail(input.email);
         
-        if (!credential) {
+        if (!user) {
           throw new Error("Invalid email or password");
         }
 
-        const isPasswordValid = await bcrypt.compare(input.password, credential.passwordHash);
-        
-        if (!isPasswordValid) {
+        // Compare plain text passwords
+        if (input.password !== user.password) {
           throw new Error("Invalid email or password");
         }
 
-        // Create a unique openId for credential-based users
-        const credentialOpenId = `credential-${input.email}`;
+        // Create a simple session token (not JWT, just a simple identifier)
+        const sessionToken = `${user.id}-${user.email}-${Date.now()}`;
 
-        // Upsert user in database so ctx.user is populated on next request
-        await upsertUser({
-          openId: credentialOpenId,
-          email: input.email,
-          name: input.email.split("@")[0],
-          loginMethod: "credential",
-          lastSignedIn: new Date(),
-        });
-
-        // Create a JWT session token
-        const sessionToken = await sdk.createSessionToken(credentialOpenId, {
-          name: input.email,
-        });
-
-        // Set session cookie with JWT token
+        // Set session cookie
         const cookieOptions = getSessionCookieOptions(ctx.req);
         ctx.res.cookie(COOKIE_NAME, sessionToken, { 
           ...cookieOptions, 
@@ -64,6 +48,10 @@ export const appRouter = router({
         return {
           success: true,
           message: "Login successful",
+          user: {
+            id: user.id,
+            email: user.email,
+          },
         };
       }),
   }),
